@@ -49,6 +49,7 @@
       return {
         salary: 0,
         monthlyLimit: 0,
+        theme: null,
         period: Utils.monthKey(new Date()),
         extraIncomes: [],
         expenses: [],
@@ -66,6 +67,7 @@
       return {
         salary: Utils.number(raw.salary),
         monthlyLimit: Utils.number(raw.monthlyLimit),
+        theme: raw.theme === 'dark' || raw.theme === 'light' ? raw.theme : base.theme,
         period: /^\d{4}-\d{2}$/.test(raw.period) ? raw.period : base.period,
         extraIncomes: Array.isArray(raw.extraIncomes) ? raw.extraIncomes : [],
         expenses: Array.isArray(raw.expenses) ? raw.expenses : [],
@@ -212,6 +214,7 @@
 
     cacheElements() {
       const ids = [
+        'theme-toggle', 'theme-icon', 'theme-label',
         'period-label', 'balance-amount', 'balance-note', 'limit-bar', 'limit-text',
         'stat-income', 'stat-expenses', 'stat-emergency', 'stat-goals',
         'alert-zone', 'salary-input', 'limit-input', 'salary-form',
@@ -232,6 +235,16 @@
 
     clearNotice() {
       UI.notice = null;
+    },
+
+    applyTheme(theme) {
+      const isDark = theme === 'dark';
+      document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+      const button = UI.elements['theme-toggle'];
+      button.setAttribute('aria-pressed', String(isDark));
+      button.setAttribute('aria-label', isDark ? 'Activar modo claro' : 'Activar modo oscuro');
+      UI.elements['theme-icon'].textContent = isDark ? '☀' : '☾';
+      UI.elements['theme-label'].textContent = isDark ? 'Modo claro' : 'Modo oscuro';
     },
 
     createRecord({ title, meta, amount, amountClass, actionable, action, id }) {
@@ -414,7 +427,7 @@
 
       el['period-label'].textContent = Utils.monthLabel(state.period);
       el['balance-amount'].textContent = Utils.money(balance);
-      el['balance-amount'].style.color = balance < 0 ? '#f2a9a2' : '';
+      el['balance-amount'].classList.toggle('is-negative', balance < 0);
 
       if (state.salary === 0) {
         el['balance-note'].textContent = 'Comienza registrando tu salario.';
@@ -476,6 +489,12 @@
 
     bindEvents() {
       const el = UI.elements;
+
+      el['theme-toggle'].addEventListener('click', () => {
+        App.state.theme = App.state.theme === 'dark' ? 'light' : 'dark';
+        UI.applyTheme(App.state.theme);
+        Storage.save(App.state);
+      });
 
       el['salary-form'].addEventListener('submit', (event) => {
         event.preventDefault();
@@ -588,6 +607,13 @@
     init() {
       UI.cacheElements();
       App.state = Storage.load();
+
+      if (App.state.theme !== 'dark' && App.state.theme !== 'light') {
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        App.state.theme = prefersDark ? 'dark' : 'light';
+        Storage.save(App.state);
+      }
+      UI.applyTheme(App.state.theme);
 
       const leftover = Month.autoClose(App.state);
       if (leftover !== null) {
