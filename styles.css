@@ -33,7 +33,6 @@
   --danger-text: #843a35;
   --info-border: #cce2d6;
   --placeholder: #9aa8a1;
-  --segment-shadow: rgba(37, 51, 47, 0.08);
 }
 
 html[data-theme="dark"] {
@@ -69,7 +68,6 @@ html[data-theme="dark"] {
   --danger-text: #f2b3ac;
   --info-border: #335247;
   --placeholder: #7e9189;
-  --segment-shadow: rgba(0, 0, 0, 0.2);
 }
 
 *,
@@ -428,48 +426,6 @@ button:focus-visible {
 
 .input-prefix input:focus-visible {
   outline: none;
-}
-
-.segmented {
-  display: flex;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 10px;
-  background: var(--surface-soft);
-}
-
-.segment {
-  flex: 1;
-}
-
-.segment input {
-  position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
-}
-
-.segment span {
-  display: block;
-  padding: 7px 10px;
-  border-radius: 8px;
-  text-align: center;
-  font-size: 0.88rem;
-  color: var(--ink-soft);
-  cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-.segment input:checked + span {
-  background: var(--surface);
-  color: var(--accent-dark);
-  font-weight: 600;
-  box-shadow: 0 1px 4px var(--segment-shadow);
-}
-
-.segment input:focus-visible + span {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 .btn {

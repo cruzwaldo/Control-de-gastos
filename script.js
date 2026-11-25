@@ -133,8 +133,8 @@
       return Calculations.fixedExpenses(state) + Calculations.extraExpenses(state);
     },
 
-    availableLimit(state) {
-      return Utils.number(state.monthlyLimit) - Calculations.fixedExpenses(state);
+    extraLimit(state) {
+      return Utils.number(state.monthlyLimit);
     },
 
     activeGoals(state) {
@@ -158,24 +158,17 @@
     },
 
     limitStatus(state) {
-      const fixed = Calculations.fixedExpenses(state);
       const extra = Calculations.extraExpenses(state);
-      const available = Calculations.availableLimit(state);
+      const limit = Calculations.extraLimit(state);
 
-      if (Utils.number(state.monthlyLimit) === 0) {
-        return { level: 'none', ratio: 0, percent: 0, available: 0, fixed, extra };
-      }
+      if (limit === 0) return { level: 'none', ratio: 0, percent: 0, limit: 0, extra };
 
-      if (available <= 0) {
-        return { level: 'danger', ratio: 1, percent: 100, available: 0, fixed, extra };
-      }
-
-      const ratio = extra / available;
+      const ratio = extra / limit;
       let level = 'ok';
       if (ratio >= 1) level = 'danger';
       else if (ratio >= 0.9) level = 'warning';
 
-      return { level, ratio, percent: Math.round(ratio * 100), available, fixed, extra };
+      return { level, ratio, percent: Math.round(ratio * 100), limit, extra };
     }
   };
 
@@ -183,10 +176,10 @@
     close(state, periodKey) {
       const expenses = Calculations.totalExpenses(state);
       const extra = Calculations.extraExpenses(state);
-      const available = Math.max(0, Calculations.availableLimit(state));
+      const limit = Calculations.extraLimit(state);
       const emergencySavedThisMonth = Utils.number(state.emergencyAllocation);
       const goalsContribution = Calculations.monthlySavings(state);
-      const leftover = Math.max(0, available - extra);
+      const leftover = Math.max(0, limit - extra);
       const finalBalance = Calculations.balance(state);
 
       const activeGoals = Calculations.activeGoals(state);
@@ -246,7 +239,8 @@
         'stat-income', 'stat-expenses', 'stat-emergency', 'stat-goals',
         'alert-zone', 'salary-input', 'limit-input', 'salary-form',
         'income-form', 'income-amount', 'income-category', 'income-note', 'income-list',
-        'expense-form', 'expense-category', 'expense-amount', 'expense-note', 'expense-list',
+        'fixed-expense-form', 'fixed-expense-category', 'fixed-expense-amount', 'fixed-expense-note', 'fixed-expense-list',
+        'extra-expense-form', 'extra-expense-category', 'extra-expense-amount', 'extra-expense-note', 'extra-expense-list',
         'emergency-form', 'emergency-amount', 'emergency-fund', 'emergency-this-month',
         'goal-form', 'goal-name', 'goal-monthly', 'goal-target', 'goal-list',
         'close-month', 'history-body'
@@ -345,8 +339,10 @@
     },
 
     renderExpenses(state) {
-      const list = UI.elements['expense-list'];
-      list.replaceChildren();
+      const fixedList = UI.elements['fixed-expense-list'];
+      const extraList = UI.elements['extra-expense-list'];
+      fixedList.replaceChildren();
+      extraList.replaceChildren();
 
       [...state.expenses].reverse().forEach((expense) => {
         const label = (expense.note || '').trim() || expense.category;
@@ -354,7 +350,7 @@
         const isPaid = expense.paid === true;
         const item = UI.createRecord({
           title: label,
-          meta: `${isFixed ? 'Fijo' : 'Extra'} · ${expense.category}`,
+          meta: expense.category,
           amount: `- ${Utils.money(expense.amount)}`,
           amountClass: isFixed && !isPaid ? 'pending' : 'negative',
           actionable: true,
@@ -370,7 +366,7 @@
           item.querySelector('.record-meta').append(' · ', badge);
         }
 
-        list.append(item);
+        (isFixed ? fixedList : extraList).append(item);
       });
     },
 
@@ -470,13 +466,13 @@
       const status = Calculations.limitStatus(state);
 
       if (status.level === 'danger') {
-        const message = status.available === 0
-          ? `Límite superado: tus gastos fijos (${Utils.money(status.fixed)}) ya cubren el límite mensual (${Utils.money(state.monthlyLimit)}).`
-          : `Límite superado: has gastado ${Utils.money(status.extra)} en gastos extra de ${Utils.money(status.available)} disponibles tras gastos fijos.`;
-        addAlert(message, 'danger');
+        addAlert(
+          `Límite superado: has gastado ${Utils.money(status.extra)} en gastos extra de ${Utils.money(status.limit)} de límite mensual.`,
+          'danger'
+        );
       } else if (status.level === 'warning') {
         addAlert(
-          `Atención: tus gastos extra ya son el ${status.percent}% del límite disponible (${Utils.money(status.extra)} de ${Utils.money(status.available)}).`,
+          `Atención: tus gastos extra ya son el ${status.percent}% del límite mensual (${Utils.money(status.extra)} de ${Utils.money(status.limit)}).`,
           'warning'
         );
       }
@@ -510,14 +506,13 @@
 
       el['limit-text'].textContent = status.level === 'none'
         ? 'Límite mensual sin definir'
-        : `Límite usado: ${status.percent}% de ${Utils.money(status.available)} tras fijos`;
+        : `Límite usado: ${status.percent}% de ${Utils.money(status.limit)} en extras`;
 
       el['emergency-fund'].textContent = Utils.money(state.emergencyFund);
       el['emergency-this-month'].textContent = `Apartado este mes: ${Utils.money(state.emergencyAllocation)}`;
     },
 
-    renderCategories(type) {
-      const select = UI.elements['expense-category'];
+    renderCategories(select, type) {
       select.replaceChildren();
       CATEGORIES[type].forEach((category) => {
         const option = document.createElement('option');
@@ -545,8 +540,22 @@
       UI.render(App.state);
     },
 
-    selectedExpenseType() {
-      return document.querySelector('input[name="expense-type"]:checked').value;
+    addExpense(type, amountInput, categoryInput, noteInput) {
+      const amount = Utils.number(amountInput.value);
+      if (amount === 0) return;
+      App.state.expenses.push({
+        id: Utils.uid(),
+        type,
+        category: categoryInput.value,
+        amount,
+        note: noteInput.value.trim(),
+        date: new Date().toISOString(),
+        paid: type === 'extra'
+      });
+      amountInput.value = '';
+      noteInput.value = '';
+      UI.clearNotice();
+      App.persist();
     },
 
     bindEvents() {
@@ -582,28 +591,24 @@
         App.persist();
       });
 
-      el['expense-form'].addEventListener('submit', (event) => {
+      el['fixed-expense-form'].addEventListener('submit', (event) => {
         event.preventDefault();
-        const amount = Utils.number(el['expense-amount'].value);
-        if (amount === 0) return;
-        const type = App.selectedExpenseType();
-        App.state.expenses.push({
-          id: Utils.uid(),
-          type,
-          category: el['expense-category'].value,
-          amount,
-          note: el['expense-note'].value.trim(),
-          date: new Date().toISOString(),
-          paid: type === 'extra'
-        });
-        el['expense-form'].reset();
-        UI.renderCategories(type);
-        UI.clearNotice();
-        App.persist();
+        App.addExpense(
+          'fixed',
+          el['fixed-expense-amount'],
+          el['fixed-expense-category'],
+          el['fixed-expense-note']
+        );
       });
 
-      document.querySelectorAll('input[name="expense-type"]').forEach((radio) => {
-        radio.addEventListener('change', () => UI.renderCategories(App.selectedExpenseType()));
+      el['extra-expense-form'].addEventListener('submit', (event) => {
+        event.preventDefault();
+        App.addExpense(
+          'extra',
+          el['extra-expense-amount'],
+          el['extra-expense-category'],
+          el['extra-expense-note']
+        );
       });
 
       el['emergency-form'].addEventListener('submit', (event) => {
@@ -653,7 +658,7 @@
         UI.render(App.state);
       });
 
-      ['income-list', 'expense-list', 'goal-list'].forEach((listId) => {
+      ['income-list', 'fixed-expense-list', 'extra-expense-list', 'goal-list'].forEach((listId) => {
         el[listId].addEventListener('click', (event) => {
           const button = event.target.closest('button[data-action]');
           if (!button) return;
@@ -697,7 +702,8 @@
 
       UI.elements['salary-input'].value = App.state.salary || '';
       UI.elements['limit-input'].value = App.state.monthlyLimit || '';
-      UI.renderCategories(App.selectedExpenseType());
+      UI.renderCategories(UI.elements['fixed-expense-category'], 'fixed');
+      UI.renderCategories(UI.elements['extra-expense-category'], 'extra');
       UI.render(App.state);
       App.bindEvents();
     }

@@ -78,7 +78,7 @@
               <span aria-hidden="true">$</span>
               <input type="number" id="limit-input" min="0" step="0.01" placeholder="Ej. 1800000" required>
             </div>
-            <p class="hint">Los gastos fijos se descuentan de este límite; solo los extra cuentan para el uso.</p>
+            <p class="hint">Este límite aplica solo a gastos extra; los fijos no lo afectan.</p>
           </div>
           <button type="submit" class="btn btn-primary">Guardar configuración</button>
         </form>
@@ -115,43 +115,56 @@
         <ul class="record-list" id="income-list"></ul>
       </section>
 
-      <section class="card" aria-labelledby="expense-title">
+      <section class="card" aria-labelledby="fixed-expense-title">
         <header class="card-header">
-          <h2 id="expense-title">Registrar gastos</h2>
-          <p>Los fijos quedan pendientes hasta que los pagues; los extras se descuentan al registrarlos.</p>
+          <h2 id="fixed-expense-title">Gastos fijos</h2>
+          <p>Quedan pendientes hasta que los pagues.</p>
         </header>
-        <form id="expense-form" class="form-stack">
+        <form id="fixed-expense-form" class="form-stack">
           <div class="field">
-            <span class="field-label" id="expense-type-label">Tipo de gasto</span>
-            <div class="segmented" role="group" aria-labelledby="expense-type-label">
-              <label class="segment">
-                <input type="radio" name="expense-type" value="fixed" checked>
-                <span>Fijo</span>
-              </label>
-              <label class="segment">
-                <input type="radio" name="expense-type" value="extra">
-                <span>Extra</span>
-              </label>
-            </div>
+            <label for="fixed-expense-category">Categoría</label>
+            <select id="fixed-expense-category" required></select>
           </div>
           <div class="field">
-            <label for="expense-category">Categoría</label>
-            <select id="expense-category" required></select>
-          </div>
-          <div class="field">
-            <label for="expense-amount">Monto</label>
+            <label for="fixed-expense-amount">Monto</label>
             <div class="input-prefix">
               <span aria-hidden="true">$</span>
-              <input type="number" id="expense-amount" min="0.01" step="0.01" placeholder="0" required>
+              <input type="number" id="fixed-expense-amount" min="0.01" step="0.01" placeholder="0" required>
             </div>
           </div>
           <div class="field">
-            <label for="expense-note">Descripción <span class="optional">(opcional)</span></label>
-            <input type="text" id="expense-note" maxlength="60" placeholder="Ej. Netflix">
+            <label for="fixed-expense-note">Descripción <span class="optional">(opcional)</span></label>
+            <input type="text" id="fixed-expense-note" maxlength="60" placeholder="Ej. Arriendo">
           </div>
-          <button type="submit" class="btn btn-primary">Agregar gasto</button>
+          <button type="submit" class="btn btn-primary">Agregar gasto fijo</button>
         </form>
-        <ul class="record-list" id="expense-list"></ul>
+        <ul class="record-list" id="fixed-expense-list"></ul>
+      </section>
+
+      <section class="card" aria-labelledby="extra-expense-title">
+        <header class="card-header">
+          <h2 id="extra-expense-title">Gastos extra</h2>
+          <p>Se descuentan al registrarlos y consumen el límite.</p>
+        </header>
+        <form id="extra-expense-form" class="form-stack">
+          <div class="field">
+            <label for="extra-expense-category">Categoría</label>
+            <select id="extra-expense-category" required></select>
+          </div>
+          <div class="field">
+            <label for="extra-expense-amount">Monto</label>
+            <div class="input-prefix">
+              <span aria-hidden="true">$</span>
+              <input type="number" id="extra-expense-amount" min="0.01" step="0.01" placeholder="0" required>
+            </div>
+          </div>
+          <div class="field">
+            <label for="extra-expense-note">Descripción <span class="optional">(opcional)</span></label>
+            <input type="text" id="extra-expense-note" maxlength="60" placeholder="Ej. Salidas">
+          </div>
+          <button type="submit" class="btn btn-primary">Agregar gasto extra</button>
+        </form>
+        <ul class="record-list" id="extra-expense-list"></ul>
       </section>
 
       <section class="card" aria-labelledby="emergency-title">
