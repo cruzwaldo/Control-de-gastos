@@ -567,6 +567,45 @@ button:focus-visible {
   color: var(--accent-dark);
 }
 
+.record-amount.pending {
+  color: var(--ink-soft);
+}
+
+.badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.badge-pending {
+  background: var(--warn-soft);
+  color: var(--warning-text);
+}
+
+.badge-paid {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.pay-btn {
+  padding: 5px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.pay-btn:hover {
+  background: var(--accent-soft-hover);
+}
+
 .icon-btn {
   flex: none;
   width: 28px;

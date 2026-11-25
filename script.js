@@ -70,7 +70,15 @@
         theme: raw.theme === 'dark' || raw.theme === 'light' ? raw.theme : base.theme,
         period: /^\d{4}-\d{2}$/.test(raw.period) ? raw.period : base.period,
         extraIncomes: Array.isArray(raw.extraIncomes) ? raw.extraIncomes : [],
-        expenses: Array.isArray(raw.expenses) ? raw.expenses : [],
+        expenses: Array.isArray(raw.expenses)
+          ? raw.expenses.map((item) => {
+            const entry = item && typeof item === 'object' ? item : {};
+            return {
+              ...entry,
+              paid: entry.type !== 'fixed' || entry.paid === true || entry.paid === undefined
+            };
+          })
+          : [],
         emergencyAllocation: Utils.number(raw.emergencyAllocation),
         emergencyFund: Utils.number(raw.emergencyFund),
         savingsGoals: Array.isArray(raw.savingsGoals) ? raw.savingsGoals : [],
@@ -107,8 +115,12 @@
 
     fixedExpenses(state) {
       return state.expenses
-        .filter((item) => item.type === 'fixed')
+        .filter((item) => item.type === 'fixed' && item.paid === true)
         .reduce((sum, item) => sum + Utils.number(item.amount), 0);
+    },
+
+    pendingFixedExpenses(state) {
+      return state.expenses.filter((item) => item.type === 'fixed' && item.paid !== true);
     },
 
     extraExpenses(state) {
@@ -119,6 +131,10 @@
 
     totalExpenses(state) {
       return Calculations.fixedExpenses(state) + Calculations.extraExpenses(state);
+    },
+
+    availableLimit(state) {
+      return Utils.number(state.monthlyLimit) - Calculations.fixedExpenses(state);
     },
 
     activeGoals(state) {
@@ -142,24 +158,35 @@
     },
 
     limitStatus(state) {
-      const limit = Utils.number(state.monthlyLimit);
-      if (limit === 0) return { level: 'none', ratio: 0, percent: 0 };
+      const fixed = Calculations.fixedExpenses(state);
+      const extra = Calculations.extraExpenses(state);
+      const available = Calculations.availableLimit(state);
 
-      const ratio = Calculations.totalExpenses(state) / limit;
+      if (Utils.number(state.monthlyLimit) === 0) {
+        return { level: 'none', ratio: 0, percent: 0, available: 0, fixed, extra };
+      }
+
+      if (available <= 0) {
+        return { level: 'danger', ratio: 1, percent: 100, available: 0, fixed, extra };
+      }
+
+      const ratio = extra / available;
       let level = 'ok';
       if (ratio >= 1) level = 'danger';
       else if (ratio >= 0.9) level = 'warning';
 
-      return { level, ratio, percent: Math.round(ratio * 100) };
+      return { level, ratio, percent: Math.round(ratio * 100), available, fixed, extra };
     }
   };
 
   const Month = {
     close(state, periodKey) {
       const expenses = Calculations.totalExpenses(state);
+      const extra = Calculations.extraExpenses(state);
+      const available = Math.max(0, Calculations.availableLimit(state));
       const emergencySavedThisMonth = Utils.number(state.emergencyAllocation);
       const goalsContribution = Calculations.monthlySavings(state);
-      const leftover = Math.max(0, Utils.number(state.monthlyLimit) - expenses);
+      const leftover = Math.max(0, available - extra);
       const finalBalance = Calculations.balance(state);
 
       const activeGoals = Calculations.activeGoals(state);
@@ -247,7 +274,7 @@
       UI.elements['theme-label'].textContent = isDark ? 'Modo claro' : 'Modo oscuro';
     },
 
-    createRecord({ title, meta, amount, amountClass, actionable, action, id }) {
+    createRecord({ title, meta, amount, amountClass, actionable, action, id, payable }) {
       const item = document.createElement('li');
       item.className = 'record';
 
@@ -272,6 +299,17 @@
       amountEl.textContent = amount;
 
       actions.append(amountEl);
+
+      if (payable) {
+        const payButton = document.createElement('button');
+        payButton.type = 'button';
+        payButton.className = 'pay-btn';
+        payButton.dataset.action = 'pay-expense';
+        payButton.dataset.id = id;
+        payButton.setAttribute('aria-label', `Pagar ${title}`);
+        payButton.textContent = 'Pagar';
+        actions.append(payButton);
+      }
 
       if (actionable) {
         const button = document.createElement('button');
@@ -312,16 +350,27 @@
 
       [...state.expenses].reverse().forEach((expense) => {
         const label = (expense.note || '').trim() || expense.category;
-        const typeLabel = expense.type === 'fixed' ? 'Fijo' : 'Extra';
-        list.append(UI.createRecord({
+        const isFixed = expense.type === 'fixed';
+        const isPaid = expense.paid === true;
+        const item = UI.createRecord({
           title: label,
-          meta: `${typeLabel} · ${expense.category}`,
+          meta: `${isFixed ? 'Fijo' : 'Extra'} · ${expense.category}`,
           amount: `- ${Utils.money(expense.amount)}`,
-          amountClass: 'negative',
+          amountClass: isFixed && !isPaid ? 'pending' : 'negative',
           actionable: true,
           action: 'delete-expense',
-          id: expense.id
-        }));
+          id: expense.id,
+          payable: isFixed && !isPaid
+        });
+
+        if (isFixed) {
+          const badge = document.createElement('span');
+          badge.className = `badge badge-${isPaid ? 'paid' : 'pending'}`;
+          badge.textContent = isPaid ? 'Pagado' : 'Pendiente';
+          item.querySelector('.record-meta').append(' · ', badge);
+        }
+
+        list.append(item);
       });
     },
 
@@ -409,14 +458,27 @@
         addAlert(UI.notice.message, UI.notice.type);
       }
 
+      const pending = Calculations.pendingFixedExpenses(state);
+      if (pending.length > 0) {
+        const total = pending.reduce((sum, item) => sum + Utils.number(item.amount), 0);
+        addAlert(
+          `Tienes ${pending.length} gasto(s) fijo(s) pendiente(s) por ${Utils.money(total)}. Págalos para descontarlos del saldo.`,
+          'info'
+        );
+      }
+
       const status = Calculations.limitStatus(state);
-      const limit = Utils.money(state.monthlyLimit);
-      const expenses = Utils.money(Calculations.totalExpenses(state));
 
       if (status.level === 'danger') {
-        addAlert(`Límite superado: has gastado ${expenses} de ${limit}. Revisa tus gastos antes de continuar.`, 'danger');
+        const message = status.available === 0
+          ? `Límite superado: tus gastos fijos (${Utils.money(status.fixed)}) ya cubren el límite mensual (${Utils.money(state.monthlyLimit)}).`
+          : `Límite superado: has gastado ${Utils.money(status.extra)} en gastos extra de ${Utils.money(status.available)} disponibles tras gastos fijos.`;
+        addAlert(message, 'danger');
       } else if (status.level === 'warning') {
-        addAlert(`Atención: tus gastos ya son el ${status.percent}% de tu límite mensual (${expenses} de ${limit}).`, 'warning');
+        addAlert(
+          `Atención: tus gastos extra ya son el ${status.percent}% del límite disponible (${Utils.money(status.extra)} de ${Utils.money(status.available)}).`,
+          'warning'
+        );
       }
     },
 
@@ -448,7 +510,7 @@
 
       el['limit-text'].textContent = status.level === 'none'
         ? 'Límite mensual sin definir'
-        : `Límite usado: ${status.percent}% de ${Utils.money(state.monthlyLimit)}`;
+        : `Límite usado: ${status.percent}% de ${Utils.money(status.available)} tras fijos`;
 
       el['emergency-fund'].textContent = Utils.money(state.emergencyFund);
       el['emergency-this-month'].textContent = `Apartado este mes: ${Utils.money(state.emergencyAllocation)}`;
@@ -524,16 +586,18 @@
         event.preventDefault();
         const amount = Utils.number(el['expense-amount'].value);
         if (amount === 0) return;
+        const type = App.selectedExpenseType();
         App.state.expenses.push({
           id: Utils.uid(),
-          type: App.selectedExpenseType(),
+          type,
           category: el['expense-category'].value,
           amount,
           note: el['expense-note'].value.trim(),
-          date: new Date().toISOString()
+          date: new Date().toISOString(),
+          paid: type === 'extra'
         });
         el['expense-form'].reset();
-        UI.renderCategories(App.selectedExpenseType());
+        UI.renderCategories(type);
         UI.clearNotice();
         App.persist();
       });
@@ -571,8 +635,12 @@
       });
 
       el['close-month'].addEventListener('click', () => {
+        const pendingCount = Calculations.pendingFixedExpenses(App.state).length;
+        const warning = pendingCount > 0
+          ? ` Hay ${pendingCount} gasto(s) fijo(s) pendiente(s) que no se contabilizarán.`
+          : '';
         const confirmed = window.confirm(
-          `¿Cerrar ${Utils.monthLabel(App.state.period)}? Se archivará el resumen y comenzará un mes nuevo.`
+          `¿Cerrar ${Utils.monthLabel(App.state.period)}?${warning} Se archivará el resumen y comenzará un mes nuevo.`
         );
         if (!confirmed) return;
 
@@ -595,6 +663,9 @@
             App.state.extraIncomes = App.state.extraIncomes.filter((item) => item.id !== id);
           } else if (action === 'delete-expense') {
             App.state.expenses = App.state.expenses.filter((item) => item.id !== id);
+          } else if (action === 'pay-expense') {
+            const expense = App.state.expenses.find((item) => item.id === id);
+            if (expense) expense.paid = true;
           } else if (action === 'delete-goal') {
             App.state.savingsGoals = App.state.savingsGoals.filter((item) => item.id !== id);
           }

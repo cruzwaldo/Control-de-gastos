@@ -78,6 +78,7 @@
               <span aria-hidden="true">$</span>
               <input type="number" id="limit-input" min="0" step="0.01" placeholder="Ej. 1800000" required>
             </div>
+            <p class="hint">Los gastos fijos se descuentan de este límite; solo los extra cuentan para el uso.</p>
           </div>
           <button type="submit" class="btn btn-primary">Guardar configuración</button>
         </form>
@@ -117,7 +118,7 @@
       <section class="card" aria-labelledby="expense-title">
         <header class="card-header">
           <h2 id="expense-title">Registrar gastos</h2>
-          <p>Fijos para cada mes, extras cuando aparecen.</p>
+          <p>Los fijos quedan pendientes hasta que los pagues; los extras se descuentan al registrarlos.</p>
         </header>
         <form id="expense-form" class="form-stack">
           <div class="field">
